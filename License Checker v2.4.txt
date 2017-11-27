@@ -1,0 +1,270 @@
+OBJECT Table 75223 License Checker
+{
+  OBJECT-PROPERTIES
+  {
+    Date=24-11-17;
+    Time=14:08:28;
+    Modified=Yes;
+    Version List=1CF_TOOLS_Ver2.4;
+  }
+  PROPERTIES
+  {
+  }
+  FIELDS
+  {
+    { 1   ;   ;Type                ;Code20         }
+    { 2   ;   ;ID                  ;Code20         }
+    { 3   ;   ;Name                ;Text50         }
+    { 4   ;   ;Version List        ;Text50         }
+  }
+  KEYS
+  {
+    {    ;Type,ID                                 ;Clustered=Yes }
+  }
+  FIELDGROUPS
+  {
+  }
+  CODE
+  {
+
+    BEGIN
+    END.
+  }
+}
+
+OBJECT Report 75223 License Checker
+{
+  OBJECT-PROPERTIES
+  {
+    Date=24-11-17;
+    Time=17:32:24;
+    Modified=Yes;
+    Version List=1CF_TOOLS_Ver2.4;
+  }
+  PROPERTIES
+  {
+    CaptionML=ENU=License Checker;
+    ProcessingOnly=Yes;
+    OnPreReport=BEGIN
+                    //Import object data from FOB file
+                    TempLicenseChecker.INIT;
+                    FobFile.TEXTMODE(TRUE);
+                    FobFile.OPEN(ImportFobFilePath);
+                    FileIsRead := FALSE;
+                    REPEAT
+                      FobFile.READ(ObjectFromFile);
+                        CASE UPPERCASE(COPYSTR(ObjectFromFile, 1, 3)) OF
+                         'TAB', 'PAG', 'REP', 'COD', 'QUE', 'XML', 'MEN', 'FOR', 'DAT' : BEGIN
+                        ObjectTypeFromFile := COPYSTR(ObjectFromFile, 1, 9);
+                        ObjectIDFromFile := COPYSTR(ObjectFromFile, 11, 10);
+                        ObjectNameFromFile := COPYSTR(ObjectFromFile, 22, 33);
+                        TempLicenseChecker.INIT;
+                        TempLicenseChecker.Type := ObjectTypeFromFile;
+                        TempLicenseChecker.ID := ObjectIDFromFile;
+                        TempLicenseChecker.Name := ObjectNameFromFile;
+                        FobFile.READ(ObjectFromFile);
+                        ObjectVersionList := COPYSTR(ObjectFromFile, 22, 50);
+                        TempLicenseChecker."Version List" := ObjectVersionList;
+                        TempLicenseChecker.INSERT;
+                        END;
+                        ELSE BEGIN
+                          FileIsRead:= TRUE;
+                        END;
+                      END;
+                    UNTIL FileIsRead;
+                    FobFile.CLOSE;
+
+                    Window.OPEN('Exporting Data... @1@@@@@@@@@');
+                    //Checks last symbol of path "/"
+                    MyChar := FORMAT(ExportCsvFilePath[STRLEN(ExportCsvFilePath)]);
+                    IF MyChar <> Text003 THEN BEGIN
+                      ExportCsvFilePath := ExportCsvFilePath + Text003;
+                    END;
+                    //Formating CSV file name using FOB name
+                    CsvNameFormatedOfFobName := CONVERTSTR(ImportFobFilePath,'\',',');
+                    Position := STRLEN(DELCHR(CsvNameFormatedOfFobName, '<=>', DELCHR(CsvNameFormatedOfFobName,'<=>', ',')));
+                    CsvNameFormatedOfFobName := SELECTSTR(Position,CsvNameFormatedOfFobName);
+                    CsvNameFormatedOfFobName := DELCHR(CsvNameFormatedOfFobName, '=', '"fob"');
+                    CsvNameFormatedOfFobName := 'ExportedCSV_' + CsvNameFormatedOfFobName;
+
+                    //Creating CSV file
+                    FileOut.CREATE(ExportCsvFilePath + CsvNameFormatedOfFobName + '.csv');
+                    FileOut.CREATEOUTSTREAM(StreamOut);
+                    StreamOut.WRITETEXT(Text100 + Text101 + Text111 + Text112 + Text102 + Text103 + Text104 + Text105 + Text106);
+                    StreamOut.WRITETEXT;
+                    TempLicenseChecker.FINDSET;
+                    NoOfRecs := TempLicenseChecker.COUNT;
+                    REPEAT
+                      IF TempLicenseChecker.Type = 'TABLE' THEN BEGIN
+                        ObjectTypeFromFileInt := 1;
+                        END;
+                      IF TempLicenseChecker.Type = 'FORM' THEN BEGIN
+                        ObjectTypeFromFileInt := 2;
+                        END;
+                      IF TempLicenseChecker.Type = 'REPORT' THEN BEGIN
+                        ObjectTypeFromFileInt := 3;
+                        END;
+                      IF TempLicenseChecker.Type = 'DATAPORT' THEN BEGIN
+                        ObjectTypeFromFileInt := 4;
+                        END;
+                      IF  TempLicenseChecker.Type = 'CODEUNIT' THEN BEGIN
+                        ObjectTypeFromFileInt := 5;
+                        END;
+                      IF TempLicenseChecker.Type = 'XMLPORT' THEN BEGIN
+                        ObjectTypeFromFileInt := 6;
+                        END;
+                      IF TempLicenseChecker.Type = 'MENUSUITE' THEN BEGIN
+                        ObjectTypeFromFileInt := 7;
+                        END;
+                      IF TempLicenseChecker.Type = 'PAGE' THEN BEGIN
+                        ObjectTypeFromFileInt := 8;
+                        END;
+                      IF TempLicenseChecker.Type = 'QUERY' THEN BEGIN
+                        ObjectTypeFromFileInt := 9;
+                        END;
+
+                      EVALUATE(ObjectIDFromFileInt,TempLicenseChecker.ID);
+
+                      IF LicensePermission.GET(ObjectTypeFromFileInt,ObjectIDFromFileInt) THEN BEGIN
+                        StreamOut.WRITETEXT(FORMAT(LicensePermission."Object Type") + Comma);
+                        StreamOut.WRITETEXT(FORMAT(LicensePermission."Object Number") + Comma);
+                        StreamOut.WRITETEXT(Quote + FORMAT(TempLicenseChecker.Name) + Quote + Comma);
+                        StreamOut.WRITETEXT(Quote + FORMAT(TempLicenseChecker."Version List") + Quote + Comma);
+                        StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Read Permission")) + Comma);
+                        StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Insert Permission")) + Comma);
+                        StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Modify Permission")) + Comma);
+                        StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Delete Permission")) + Comma);
+                        StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Execute Permission")) + Comma);
+                        StreamOut.WRITETEXT;
+                      END;
+                      Counter += 1;
+                      IF ((Counter MOD (NoOfRecs DIV 200)) = 0) THEN
+                        Window.UPDATE(1,ROUND(Counter / NoOfRecs * 100000,1));
+                    UNTIL TempLicenseChecker.NEXT=0;
+
+                    FileOut.CLOSE;
+                    Window.CLOSE;
+                    MESSAGE('%1',Text001 + ExportCsvFilePath + CsvNameFormatedOfFobName + '.csv');
+                END;
+
+  }
+  DATAITEMS
+  {
+  }
+  REQUESTFORM
+  {
+    PROPERTIES
+    {
+      Width=10230;
+      Height=2420;
+      OnInit=BEGIN
+               ExportCsvFilePath := 'C:\Temp\';
+             END;
+
+    }
+    CONTROLS
+    {
+      { 1000000000;TextBox;3740 ;660  ;6490 ;440  ;InPage=-1;
+                                                   SourceExpr=ImportFobFilePath;
+                                                   OnAssistEdit=BEGIN
+                                                                  UploadFile;
+                                                                END;
+
+                                                   OnAfterValidate=BEGIN
+                                                                     UploadFile;
+                                                                   END;
+                                                                    }
+      { 1000000001;Label  ;0    ;660  ;3630 ;440  ;ParentControl=1000000000;
+                                                   CaptionML=ENU=Import from FOB file path }
+      { 1000000006;TextBox;3740 ;110  ;6490 ;440  ;InPage=-1;
+                                                   CaptionML=ENU=Exporting CSV file path;
+                                                   SourceExpr=ExportCsvFilePath }
+      { 1000000007;Label  ;0    ;110  ;3630 ;440  ;ParentControl=1000000006;
+                                                   InPage=-1;
+                                                   CaptionML=ENU=Export to CSV file path }
+    }
+  }
+  REQUESTPAGE
+  {
+    PROPERTIES
+    {
+    }
+    CONTROLS
+    {
+    }
+  }
+  CODE
+  {
+    VAR
+      Text000@1000000013 : TextConst 'ENU=Do you really want to export this file?';
+      Text001@1000000033 : TextConst 'ENU="File was created at "';
+      Text003@1000000014 : TextConst 'ENU=\';
+      Text004@1000000040 : TextConst 'ENU=Import FOB File';
+      Comma@1000000003 : TextConst 'ENU=,';
+      FobFile@1000000001 : File;
+      ObjectTypeFromFile@1000000006 : Text[30];
+      ObjectTypeFromFileInt@1000000035 : Integer;
+      ObjectIDFromFileInt@1000000036 : Integer;
+      ObjectIDFromFile@1000000007 : Text[30];
+      ObjectNameFromFile@1000000002 : Text[50];
+      ObjectFromFile@1000000008 : Text[250];
+      FileIsRead@1000000009 : Boolean;
+      Window@1000000015 : Dialog;
+      FileOut@1000000016 : File;
+      MyChar@1000000017 : Text[30];
+      StreamOut@1000000018 : OutStream;
+      Quote@1000000030 : TextConst 'ENU=""""';
+      Text100@1000000027 : TextConst 'ENU=Object Type,';
+      Text101@1000000026 : TextConst 'ENU=Object Number,';
+      Text111@1000000025 : TextConst 'ENU=Object Name,';
+      Text112@1000000024 : TextConst 'ENU=Version List,';
+      Text102@1000000023 : TextConst 'ENU=Read,';
+      Text103@1000000022 : TextConst 'ENU=Insert,';
+      Text104@1000000021 : TextConst 'ENU=Modify,';
+      Text105@1000000020 : TextConst 'ENU=Delete,';
+      Text106@1000000019 : TextConst 'ENU=Execute,';
+      LicensePermission@1000000028 : Record 2000000043;
+      ObjectVersionList@1000000029 : Text[50];
+      Counter@1000000031 : Integer;
+      NoOfRecs@1000000032 : Integer;
+      TempLicenseChecker@1000000034 : TEMPORARY Record 75223;
+      ImportFobFilePath@1000000037 : Text[150];
+      CsvFileName@1000000038 : Text[50];
+      UploadedFileName@1000000039 : Text[150];
+      ExportCsvFilePath@1000000041 : Text[150];
+      CsvNameFormatedOfFobName@1000000042 : Text[150];
+      Position@1000000043 : Integer;
+
+    PROCEDURE CheckIfPermissionNo@1000000001(Permission@1000000000 : Text[50]) : Text[50];
+    VAR
+      Yes@1000000001 : TextConst 'ENU=Yes';
+      Space@1000000002 : TextConst 'ENU=" "';
+      Indirect@1000000003 : TextConst 'ENU=Indirect';
+      No@1000000004 : TextConst 'ENU=No';
+    BEGIN
+      CASE Permission OF
+        Yes:
+          EXIT(Yes);
+        Space:
+          EXIT(No);
+        Indirect:
+          EXIT(Indirect);
+      END;
+    END;
+
+    PROCEDURE UploadFile@6();
+    VAR
+      CommonDialogMgt@1000 : Codeunit 412;
+    BEGIN
+      UploadedFileName := CommonDialogMgt.OpenFile(Text004,'',0,'',0);
+      ImportFobFilePath := UploadedFileName;
+    END;
+
+    BEGIN
+    END.
+  }
+  RDLDATA
+  {
+  }
+}
+
