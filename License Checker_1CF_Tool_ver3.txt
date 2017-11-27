@@ -1,0 +1,125 @@
+OBJECT Codeunit 75223 License Checker
+{
+  OBJECT-PROPERTIES
+  {
+    Date=;
+    Time=[ 3:59:18 PM];
+    Modified=Yes;
+    Version List=1CF_TOOLS_Ver3;
+  }
+  PROPERTIES
+  {
+    OnRun=BEGIN
+            // Insert File Name and Path to file here  (leave quotes)
+            // File Type can be any (.txt/.csv/.doc) .csv - for excel type,
+            FileName := 'EnterFileNameHerefix';
+            FilePath := 'c:\temp\';
+            FileType := '.csv';
+            ////////////////////////////////////////////////////////
+
+            IF NOT DIALOG.CONFIRM(Text000, TRUE) THEN
+              EXIT;
+            CheckBackSlash(FilePath);
+            Window.OPEN('Exporting Data... @1@@@@@@@@@');
+            FileOut.CREATE(FilePath + FileName + FileType);
+            FileOut.CREATEOUTSTREAM(StreamOut);
+            CreateTableColumnName;
+            Object.SETFILTER(Object.Type, '<>' + FORMAT(Object.Type::TableData));
+            Object.FINDSET();
+            REPEAT
+              LicensePermission.GET(Object.Type,Object.ID);
+              StreamOut.WRITETEXT(FORMAT(LicensePermission."Object Type") + Comma);
+              StreamOut.WRITETEXT(FORMAT(LicensePermission."Object Number") + Comma);
+              StreamOut.WRITETEXT(FORMAT(Object.Name) + Comma);
+              StreamOut.WRITETEXT(Quote + FORMAT(Object."Version List") + Quote + Comma);
+              StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Read Permission")) + Comma);
+              StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Insert Permission")) + Comma);
+              StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Modify Permission")) + Comma);
+              StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Delete Permission")) + Comma);
+              StreamOut.WRITETEXT(CheckIfPermissionNo(FORMAT(LicensePermission."Execute Permission")) + Comma);
+              StreamOut.WRITETEXT;
+              Counter += 1;
+              ProgressBar(Object, Counter);
+            UNTIL Object.NEXT=0;
+
+            FileOut.CLOSE;
+            Window.CLOSE;
+            MESSAGE('%1',Text001 + FilePath + FileName + FileType);
+          END;
+
+  }
+  CODE
+  {
+    VAR
+      Object@1000000000 : Record 2000000001;
+      LicensePermission@1000000001 : Record 2000000043;
+      Text000@1000000003 : TextConst 'ENU=Do you really want to export this file?';
+      StreamOut@1000000004 : OutStream;
+      FileOut@1000000005 : File;
+      Comma@1000000008 : TextConst 'ENU=,';
+      Window@1000000006 : Dialog;
+      Counter@1000000007 : Integer;
+      Text001@1000000010 : TextConst 'ENU="File was created at "';
+      FileName@1000000002 : Text[50];
+      FilePath@1000000009 : Text[150];
+      Text003@1000000011 : TextConst 'ENU=\';
+      FileType@1000000013 : Text[50];
+      Quote@1000000012 : TextConst 'ENU=""""';
+
+    PROCEDURE CreateTableColumnName@1000000000();
+    VAR
+      Text100@1000000000 : TextConst 'ENU=Object Type,';
+      Text101@1000000001 : TextConst 'ENU=Object Number,';
+      Text111@1000000007 : TextConst 'ENU=Object Name,';
+      Text112@1000000008 : TextConst 'ENU=Version List,';
+      Text102@1000000002 : TextConst 'ENU=Read,';
+      Text103@1000000003 : TextConst 'ENU=Insert,';
+      Text104@1000000004 : TextConst 'ENU=Modify,';
+      Text105@1000000005 : TextConst 'ENU=Delete,';
+      Text106@1000000006 : TextConst 'ENU=Execute,';
+    BEGIN
+      StreamOut.WRITETEXT(Text100 + Text101 + Text111 + Text112 + Text102 + Text103 + Text104 + Text105 + Text106);
+      StreamOut.WRITETEXT;
+    END;
+
+    PROCEDURE ProgressBar@1000000002(ObjectRec@1000000000 : Record 2000000001;Counter@1000000002 : Integer);
+    VAR
+      NoOfRecs@1000000001 : Integer;
+    BEGIN
+      NoOfRecs := ObjectRec.COUNT;
+      IF ((Counter MOD (NoOfRecs DIV 200)) = 0) THEN
+          Window.UPDATE(1,ROUND(Counter / NoOfRecs * 100000,1));
+    END;
+
+    PROCEDURE CheckBackSlash@1000000004(VAR PathText@1000000000 : Text[150]);
+    VAR
+      MyChar@1000000001 : Text[30];
+    BEGIN
+      MyChar := FORMAT(PathText[STRLEN(PathText)]);
+      IF MyChar <> Text003 THEN BEGIN
+        PathText := PathText + Text003;
+      END;
+    END;
+
+    PROCEDURE CheckIfPermissionNo@1000000001(Permission@1000000000 : Text[50]) : Text[50];
+    VAR
+      Yes@1000000001 : TextConst 'ENU=Yes';
+      Space@1000000002 : TextConst 'ENU=" "';
+      Indirect@1000000003 : TextConst 'ENU=Indirect';
+      No@1000000004 : TextConst 'ENU=No';
+    BEGIN
+      CASE Permission OF
+        Yes:
+          EXIT(Yes);
+        Space:
+          EXIT(No);
+        Indirect:
+          EXIT(Indirect);
+      END;
+    END;
+
+    BEGIN
+    END.
+  }
+}
+
